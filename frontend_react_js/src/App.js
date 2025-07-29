@@ -25,10 +25,136 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  // PUBLIC_INTERFACE
+  const toggleTheme = () => {
+    setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
+  };
+
+  // History management
+  const saveToHistory = useCallback(() => {
+    const state = { nodes: [...nodes], edges: [...edges] };
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(state);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  }, [nodes, edges, history, historyIndex]);
+
+  // PUBLIC_INTERFACE
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      const previousState = history[historyIndex - 1];
+      setNodes(previousState.nodes);
+      setEdges(previousState.edges);
+      setHistoryIndex(historyIndex - 1);
+      setSelectedNode(null);
+      setSelectedEdge(null);
+    }
+  }, [history, historyIndex]);
+
+  // PUBLIC_INTERFACE
+  const redo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const nextState = history[historyIndex + 1];
+      setNodes(nextState.nodes);
+      setEdges(nextState.edges);
+      setHistoryIndex(historyIndex + 1);
+      setSelectedNode(null);
+      setSelectedEdge(null);
+    }
+  }, [history, historyIndex]);
+
+  // Node management
+  // PUBLIC_INTERFACE
+  const addNode = useCallback((type, position) => {
+    const newNode = {
+      id: `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type,
+      position,
+      data: {
+        label: `${type.charAt(0).toUpperCase() + type.slice(1)} Node`,
+        description: '',
+        color: '#1976d2'
+      }
+    };
+    setNodes(prevNodes => [...prevNodes, newNode]);
+    setTimeout(() => saveToHistory(), 0);
+  }, [saveToHistory]);
+
+  // PUBLIC_INTERFACE
+  const updateNode = useCallback((nodeId, updates) => {
+    setNodes(prevNodes => prevNodes.map(node => 
+      node.id === nodeId ? { ...node, ...updates } : node
+    ));
+    setTimeout(() => saveToHistory(), 0);
+  }, [saveToHistory]);
+
+  // PUBLIC_INTERFACE
+  const deleteNode = useCallback((nodeId) => {
+    setNodes(prevNodes => prevNodes.filter(node => node.id !== nodeId));
+    setEdges(prevEdges => prevEdges.filter(edge => edge.source !== nodeId && edge.target !== nodeId));
+    setSelectedNode(prevSelected => prevSelected?.id === nodeId ? null : prevSelected);
+    setTimeout(() => saveToHistory(), 0);
+  }, [saveToHistory]);
+
+  // Edge management
+  // PUBLIC_INTERFACE
+  const addEdge = useCallback((sourceId, targetId) => {
+    const newEdge = {
+      id: `edge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      source: sourceId,
+      target: targetId,
+      type: 'default',
+      data: {
+        label: '',
+        color: '#424242'
+      }
+    };
+    setEdges(prevEdges => [...prevEdges, newEdge]);
+    setTimeout(() => saveToHistory(), 0);
+  }, [saveToHistory]);
+
+  // PUBLIC_INTERFACE
+  const deleteEdge = useCallback((edgeId) => {
+    setEdges(prevEdges => prevEdges.filter(edge => edge.id !== edgeId));
+    setSelectedEdge(prevSelected => prevSelected?.id === edgeId ? null : prevSelected);
+    setTimeout(() => saveToHistory(), 0);
+  }, [saveToHistory]);
+
+  // Canvas operations
+  // PUBLIC_INTERFACE
+  const zoomIn = useCallback(() => {
+    setCanvasTransform(transform => ({
+      ...transform,
+      scale: Math.min(transform.scale * 1.2, 3)
+    }));
+  }, []);
+
+  // PUBLIC_INTERFACE
+  const zoomOut = useCallback(() => {
+    setCanvasTransform(transform => ({
+      ...transform,
+      scale: Math.max(transform.scale / 1.2, 0.1)
+    }));
+  }, []);
+
+  // PUBLIC_INTERFACE
+  const resetZoom = useCallback(() => {
+    setCanvasTransform({ x: 0, y: 0, scale: 1 });
+  }, []);
+
+  // PUBLIC_INTERFACE
+  const clearCanvas = useCallback(() => {
+    setNodes([]);
+    setEdges([]);
+    setSelectedNode(null);
+    setSelectedEdge(null);
+    setTimeout(() => saveToHistory(), 0);
+  }, [saveToHistory]);
+
   // Initialize history with empty state
   useEffect(() => {
     saveToHistory();
-  }, []);
+  }, [saveToHistory]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -94,136 +220,6 @@ function App() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [selectedNode, selectedEdge, isConnecting, undo, redo, zoomIn, zoomOut, resetZoom, deleteNode, deleteEdge]);
-
-  // PUBLIC_INTERFACE
-  const toggleTheme = () => {
-    setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
-  };
-
-  // History management
-  const saveToHistory = useCallback(() => {
-    const state = { nodes: [...nodes], edges: [...edges] };
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(state);
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-  }, [nodes, edges, history, historyIndex]);
-
-  // PUBLIC_INTERFACE
-  const undo = () => {
-    if (historyIndex > 0) {
-      const previousState = history[historyIndex - 1];
-      setNodes(previousState.nodes);
-      setEdges(previousState.edges);
-      setHistoryIndex(historyIndex - 1);
-      setSelectedNode(null);
-      setSelectedEdge(null);
-    }
-  };
-
-  // PUBLIC_INTERFACE
-  const redo = () => {
-    if (historyIndex < history.length - 1) {
-      const nextState = history[historyIndex + 1];
-      setNodes(nextState.nodes);
-      setEdges(nextState.edges);
-      setHistoryIndex(historyIndex + 1);
-      setSelectedNode(null);
-      setSelectedEdge(null);
-    }
-  };
-
-  // Node management
-  // PUBLIC_INTERFACE
-  const addNode = (type, position) => {
-    const newNode = {
-      id: `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type,
-      position,
-      data: {
-        label: `${type.charAt(0).toUpperCase() + type.slice(1)} Node`,
-        description: '',
-        color: '#1976d2'
-      }
-    };
-    setNodes([...nodes, newNode]);
-    setTimeout(() => saveToHistory(), 0);
-  };
-
-  // PUBLIC_INTERFACE
-  const updateNode = (nodeId, updates) => {
-    setNodes(nodes.map(node => 
-      node.id === nodeId ? { ...node, ...updates } : node
-    ));
-    setTimeout(() => saveToHistory(), 0);
-  };
-
-  // PUBLIC_INTERFACE
-  const deleteNode = (nodeId) => {
-    setNodes(nodes.filter(node => node.id !== nodeId));
-    setEdges(edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId));
-    if (selectedNode?.id === nodeId) {
-      setSelectedNode(null);
-    }
-    setTimeout(() => saveToHistory(), 0);
-  };
-
-  // Edge management
-  // PUBLIC_INTERFACE
-  const addEdge = (sourceId, targetId) => {
-    const newEdge = {
-      id: `edge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      source: sourceId,
-      target: targetId,
-      type: 'default',
-      data: {
-        label: '',
-        color: '#424242'
-      }
-    };
-    setEdges([...edges, newEdge]);
-    setTimeout(() => saveToHistory(), 0);
-  };
-
-  // PUBLIC_INTERFACE
-  const deleteEdge = (edgeId) => {
-    setEdges(edges.filter(edge => edge.id !== edgeId));
-    if (selectedEdge?.id === edgeId) {
-      setSelectedEdge(null);
-    }
-    setTimeout(() => saveToHistory(), 0);
-  };
-
-  // Canvas operations
-  // PUBLIC_INTERFACE
-  const zoomIn = () => {
-    setCanvasTransform(transform => ({
-      ...transform,
-      scale: Math.min(transform.scale * 1.2, 3)
-    }));
-  };
-
-  // PUBLIC_INTERFACE
-  const zoomOut = () => {
-    setCanvasTransform(transform => ({
-      ...transform,
-      scale: Math.max(transform.scale / 1.2, 0.1)
-    }));
-  };
-
-  // PUBLIC_INTERFACE
-  const resetZoom = () => {
-    setCanvasTransform({ x: 0, y: 0, scale: 1 });
-  };
-
-  // PUBLIC_INTERFACE
-  const clearCanvas = () => {
-    setNodes([]);
-    setEdges([]);
-    setSelectedNode(null);
-    setSelectedEdge(null);
-    setTimeout(() => saveToHistory(), 0);
-  };
 
   return (
     <div className="App">
